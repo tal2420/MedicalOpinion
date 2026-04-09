@@ -1,0 +1,111 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. 1.0.0)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller pywebview
+
+      - name: Read version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Build with PyInstaller
+        run: pyinstaller build.spec --noconfirm --clean
+
+      - name: Verify build
+        run: |
+          if (Test-Path "dist\MedicalOpinion\MedicalOpinion.exe") {
+            Write-Host "Build successful!"
+            Get-ChildItem "dist\MedicalOpinion" | Measure-Object -Property Length -Sum | Select-Object @{N='TotalSizeMB';E={[math]::Round($_.Sum/1MB,1)}}
+          } else {
+            Write-Host "Build FAILED!"
+            exit 1
+          }
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y --no-progress
+        shell: cmd
+
+      - name: Update installer version
+        shell: bash
+        run: |
+          VERSION=$(cat VERSION | tr -d '[:space:]')
+          sed -i "s/#define MyAppVersion \"1.0.0\"/#define MyAppVersion \"$VERSION\"/" installer.iss
+          sed -i "s/MedicalOpinion_Setup_1.0.0/MedicalOpinion_Setup_$VERSION/" installer.iss
+
+      - name: Build installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+        shell: pwsh
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MedicalOpinion-Installer
+          path: installer_output/*.exe
+
+      - name: Upload portable zip
+        shell: bash
+        run: |
+          cd dist && 7z a -tzip ../MedicalOpinion_Portable_${{ steps.version.outputs.version }}.zip MedicalOpinion/
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MedicalOpinion-Portable
+          path: MedicalOpinion_Portable_*.zip
+
+      - name: Create Release (on tag push)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.version }}"
+          body: |
+            ## Medical Opinion Manager v${{ steps.version.outputs.version }}
+
+            ### הורדה
+            - **MedicalOpinion_Setup_${{ steps.version.outputs.version }}.exe** - מתקין מלא (המלצה)
+            - **MedicalOpinion_Portable_${{ steps.version.outputs.version }}.zip** - גרסה ניידת (ללא התקנה)
+
+            ### התקנה
+            1. הורד את קובץ ה-Setup
+            2. הרץ את המתקין ועקוב אחר ההוראות
+            3. האפליקציה תופיע בשולחן העבודה ובתפריט התחל
+          files: |
+            installer_output/*.exe
+            MedicalOpinion_Portable_*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

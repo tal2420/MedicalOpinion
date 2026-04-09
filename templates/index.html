@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ניהול חוות דעת רפואיות</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-header">
+        <h1>חוות דעת רפואיות</h1>
+        <div class="subtitle">מערכת ניהול</div>
+    </div>
+    <div class="sidebar-nav">
+        <button class="nav-item active" onclick="showPage('dashboard')">
+            <span class="icon">&#9776;</span>
+            <span class="nav-text">לוח בקרה</span>
+        </button>
+        <button class="nav-item" onclick="showPage('cases')">
+            <span class="icon">&#128193;</span>
+            <span class="nav-text">תיקים</span>
+        </button>
+        <button class="nav-item" onclick="showPage('email-scan')">
+            <span class="icon">&#9993;</span>
+            <span class="nav-text">סריקת מיילים</span>
+            <span class="nav-badge" id="email-badge" style="display:none">0</span>
+        </button>
+        <button class="nav-item" onclick="showPage('new-case')">
+            <span class="icon">&#10010;</span>
+            <span class="nav-text">תיק חדש</span>
+        </button>
+        <button class="nav-item" onclick="showPage('settings')">
+            <span class="icon">&#9881;</span>
+            <span class="nav-text">הגדרות</span>
+        </button>
+    </div>
+</nav>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Main Content -->
+<div class="main-content">
+
+    <!-- Dashboard Page -->
+    <div class="page active" id="page-dashboard">
+        <div class="page-header">
+            <h2>לוח בקרה</h2>
+            <button class="btn btn-outline" onclick="loadDashboard()">&#8635; רענון</button>
+        </div>
+        <!-- Dashboard cards generated dynamically from schema -->
+        <div class="dashboard-cards" id="dashboard-cards"></div>
+        <div class="table-container">
+            <div class="table-toolbar">
+                <h3 style="font-size:15px; color:var(--accent)">תיקים אחרונים</h3>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr id="dashboard-table-head"></tr></thead>
+                    <tbody id="recent-cases-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cases Page -->
+    <div class="page" id="page-cases">
+        <div class="page-header">
+            <h2>ניהול תיקים</h2>
+            <button class="btn btn-primary" onclick="showPage('new-case')">&#10010; תיק חדש</button>
+        </div>
+        <div class="table-container">
+            <div class="table-toolbar">
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="חיפוש..." oninput="filterCases()">
+                </div>
+                <!-- Filter dropdowns generated dynamically -->
+                <div id="filter-dropdowns"></div>
+            </div>
+            <div class="table-scroll">
+                <table>
+                    <thead><tr id="cases-table-head"></tr></thead>
+                    <tbody id="cases-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Case Detail Page -->
+    <div class="page" id="page-case-detail">
+        <div class="page-header">
+            <h2 id="case-detail-title">פרטי תיק</h2>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-ghost" onclick="showPage('cases')">&#8592; חזרה</button>
+                <button class="btn btn-outline" onclick="openCaseFolder()">&#128193; פתח תיקייה</button>
+            </div>
+        </div>
+        <div class="case-detail-grid">
+            <!-- Left column: info, call, payment - generated dynamically -->
+            <div id="case-detail-left"></div>
+            <!-- Right column: status, attachments, opinions -->
+            <div id="case-detail-right"></div>
+        </div>
+    </div>
+
+    <!-- Email Scan Page -->
+    <div class="page" id="page-email-scan">
+        <div class="page-header">
+            <h2>סריקת מיילים</h2>
+            <div style="display:flex;gap:8px">
+                <button class="btn btn-primary" onclick="scanEmails()" id="scan-btn">&#128269; סרוק תיבת דואר</button>
+                <button class="btn btn-success" onclick="importSelectedEmails()" id="import-btn" disabled>&#10003; ייבא נבחרים</button>
+            </div>
+        </div>
+
+        <!-- Scan filter controls -->
+        <div class="settings-section" style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;padding:14px 20px;margin-bottom:16px">
+            <div class="form-group" style="margin:0;flex:1;min-width:160px">
+                <label>טווח זמן</label>
+                <select id="scan-days" class="filter-select" style="width:100%">
+                    <option value="7">שבוע אחרון</option>
+                    <option value="30" selected>חודש אחרון</option>
+                    <option value="90">3 חודשים אחרונים</option>
+                    <option value="180">חצי שנה אחרונה</option>
+                    <option value="365">שנה אחרונה</option>
+                    <option value="0">כל המיילים</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:160px">
+                <label>סטטוס</label>
+                <select id="scan-unread" class="filter-select" style="width:100%">
+                    <option value="true">לא נקראו בלבד</option>
+                    <option value="false" selected>כל המיילים</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin:0;flex:1;min-width:160px">
+                <label>מקסימום תוצאות</label>
+                <select id="scan-max" class="filter-select" style="width:100%">
+                    <option value="20">20</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="200">200</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Email search -->
+        <div class="search-box" style="margin-bottom:12px">
+            <input type="text" id="email-search-input" placeholder="חיפוש במיילים (נושא, שולח...)" oninput="filterScannedEmails()">
+        </div>
+
+        <!-- Progress UI - hidden by default -->
+        <div id="import-progress" style="display:none">
+            <div class="settings-section" style="margin-bottom:16px">
+                <h3 id="progress-title">מייבא מיילים...</h3>
+                <div class="progress-bar"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+                <p id="progress-text" style="margin-top:8px;font-size:13px;color:var(--text-secondary)">מתחיל...</p>
+            </div>
+        </div>
+
+        <div id="email-list-container">
+            <div class="empty-state">
+                <div class="icon">&#9993;</div>
+                <h3>סרוק את תיבת הדואר</h3>
+                <p>לחץ על "סרוק תיבת דואר" כדי לחפש מיילים</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Case Page - form generated dynamically -->
+    <div class="page" id="page-new-case">
+        <div class="page-header">
+            <h2>תיק חדש</h2>
+            <button class="btn btn-ghost" onclick="showPage('cases')">&#8592; חזרה</button>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;max-width:900px">
+            <!-- Manual form -->
+            <div class="detail-section" style="flex:1;min-width:400px">
+                <h3>&#9998; הזנת פרטים ידנית</h3>
+                <form id="new-case-form" onsubmit="submitNewCase(event)">
+                    <div id="new-case-fields"></div>
+                    <button type="submit" class="btn btn-primary btn-lg" style="margin-top:16px">&#10010; צור תיק</button>
+                </form>
+            </div>
+            <!-- Folder import -->
+            <div class="detail-section" style="flex:1;min-width:400px">
+                <h3>&#128193; ייבוא תיק מתיקייה</h3>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px">
+                    ייבוא קבצים מתיקייה במחשב - המערכת תסרוק את כל ה-PDF וה-Word שבה, תחלץ פרטים, ותיצור תיק חדש.
+                </p>
+                <div class="form-group">
+                    <label>נתיב תיקייה</label>
+                    <div style="display:flex;gap:8px">
+                        <input type="text" id="import-folder-path" dir="ltr" style="text-align:left;flex:1" placeholder="C:\Users\...">
+                        <button type="button" class="btn btn-outline" onclick="browseFolderImport()">&#128194; עיון...</button>
+                    </div>
+                </div>
+                <div id="import-folder-files" style="margin-bottom:12px"></div>
+                <div style="display:flex;gap:8px">
+                    <button type="button" class="btn btn-outline" onclick="scanFolderFiles()">&#128270; סרוק קבצים</button>
+                    <button type="button" class="btn btn-primary" onclick="importFromFolder()" id="import-folder-btn" disabled>&#10010; צור תיק מתיקייה</button>
+                </div>
+                <div id="import-folder-progress" style="margin-top:12px"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Page -->
+    <div class="page" id="page-settings">
+        <div class="page-header">
+            <h2>הגדרות</h2>
+        </div>
+        <form id="settings-form" onsubmit="saveSettings(event)">
+            <div class="settings-section">
+                <h3>&#128193; תיקיית עבודה</h3>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">כל התיקים, קובץ ה-Excel והמסמכים נשמרים בתיקייה זו</p>
+                <div class="form-row">
+                    <div class="form-group" style="flex:3">
+                        <label>נתיב תיקיית עבודה</label>
+                        <input type="text" name="data_dir" id="set-datadir" dir="ltr" style="text-align:left">
+                    </div>
+                    <div class="form-group" style="flex:1;display:flex;align-items:flex-end">
+                        <button type="button" class="btn btn-outline" onclick="browseDataDir()" style="width:100%">&#128194; עיון...</button>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-ghost" onclick="openDataDir()">&#128193; פתח תיקייה בסייר</button>
+            </div>
+
+            <div class="settings-section">
+                <h3>&#9993; הגדרות דואר אלקטרוני</h3>
+                <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+                    &#9432; ה-App Password אינה הסיסמה הרגילה שלך.
+                    <a href="https://github.com/tal2420/MedicalOpinion/blob/main/docs/%D7%9E%D7%93%D7%A8%D7%99%D7%9A_App_Password.md"
+                       target="_blank" style="color:var(--primary)">
+                        &#128218; מדריך מפורט ליצירת App Password
+                    </a>
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>כתובת Gmail</label>
+                        <input type="email" name="email_address" id="set-email">
+                    </div>
+                    <div class="form-group">
+                        <label>סיסמת אפליקציה (App Password)</label>
+                        <input type="password" name="email_password" id="set-password" placeholder="16 תווים ללא רווחים">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>שרת IMAP</label>
+                        <input type="text" name="imap_server" id="set-imap" value="imap.gmail.com">
+                    </div>
+                    <div class="form-group">
+                        <label>שרת SMTP</label>
+                        <input type="text" name="smtp_server" id="set-smtp" value="smtp.gmail.com">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline" onclick="testEmailConnection()">&#128268; בדוק חיבור</button>
+                <span id="connection-status" style="margin-right:12px;font-size:14px"></span>
+            </div>
+
+            <div class="settings-section">
+                <h3>&#128100; פרטי הפרופסור</h3>
+                <div class="form-row">
+                    <div class="form-group"><label>שם מלא</label><input type="text" name="professor_name" id="set-name"></div>
+                    <div class="form-group"><label>תואר</label><input type="text" name="professor_title" id="set-title" value="פרופסור"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>התמחות</label><input type="text" name="professor_specialty" id="set-specialty" value="אורולוגיה"></div>
+                    <div class="form-group"><label>מספר רישיון</label><input type="text" name="professor_license" id="set-license"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group"><label>טלפון</label><input type="text" name="professor_phone" id="set-phone"></div>
+                    <div class="form-group"><label>כתובת</label><input type="text" name="professor_address" id="set-address"></div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg">&#128190; שמור הגדרות</button>
+        </form>
+
+        <!-- Field Manager - generated dynamically from schema -->
+        <div class="settings-section" style="margin-top:16px">
+            <h3>&#9881; ניהול שדות</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">בחר אילו שדות יוצגו בטבלת התיקים, בטופס תיק חדש, ובחילוץ אוטומטי ממיילים</p>
+            <div id="field-manager-container"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button type="button" class="btn btn-primary" onclick="saveFieldOverrides()">&#128190; שמור שינויים בשדות</button>
+                <button type="button" class="btn btn-success" onclick="openCustomFieldModal()">&#10010; הוסף שדה חדש</button>
+            </div>
+        </div>
+
+        <div class="settings-section" style="margin-top:16px">
+            <h3>&#128259; עדכון תוכנה</h3>
+            <div class="form-row">
+                <div class="form-group" style="flex:2">
+                    <label>GitHub Repository (owner/repo)</label>
+                    <input type="text" id="set-github-repo" dir="ltr" style="text-align:left" placeholder="owner/MedicalOpinion">
+                </div>
+                <div class="form-group" style="flex:1;display:flex;align-items:flex-end">
+                    <button type="button" class="btn btn-outline" onclick="saveGithubRepo()" style="width:100%">&#128190; שמור</button>
+                </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+                <span style="font-size:13px;color:var(--text-secondary)">גרסה נוכחית: <strong id="current-version">-</strong></span>
+                <button type="button" class="btn btn-outline" onclick="checkForUpdates()" id="check-update-btn">&#128269; בדוק עדכונים</button>
+            </div>
+            <div id="update-result" style="margin-top:12px"></div>
+        </div>
+
+        <!-- Diagnostics / Logs -->
+        <div class="settings-section" style="margin-top:16px">
+            <h3>&#128221; לוגים ואבחון</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+                כשנתקלים בבעיה - לחץ "צפייה בלוגים" כדי לראות מה קורה. ניתן להעתיק ולשלוח את הטקסט לתמיכה.
+            </p>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+                <button type="button" class="btn btn-outline" onclick="viewLogs()">&#128270; צפייה בלוגים</button>
+                <button type="button" class="btn btn-outline" onclick="openLogFile()">&#128193; פתח קובץ לוג</button>
+                <button type="button" class="btn btn-ghost" onclick="copyLogs()">&#128203; העתק ללוח</button>
+            </div>
+            <textarea id="log-viewer" dir="ltr" readonly
+                style="width:100%;height:300px;margin-top:12px;font-family:monospace;font-size:11px;direction:ltr;text-align:left;display:none;padding:10px;border:1px solid var(--border);border-radius:var(--radius);background:#f8f8f8"></textarea>
+        </div>
+    </div>
+
+</div>
+
+<!-- Send Opinion Modal -->
+<div class="modal-overlay" id="send-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>שליחת חוות דעת במייל</h3>
+            <button class="modal-close" onclick="closeSendModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group"><label>כתובת נמען</label><input type="email" id="send-to"></div>
+            <div class="form-group"><label>נושא</label><input type="text" id="send-subject"></div>
+            <div class="form-group"><label>תוכן ההודעה</label>
+                <textarea id="send-body" rows="5">שלום רב,
+
+מצ"ב חוות הדעת הרפואית כמבוקש.
+
+בברכה</textarea>
+            </div>
+            <div class="form-group"><label>קובץ חוו"ד לצירוף</label><select id="send-attachment"></select></div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="sendOpinionEmail()">&#9993; שלח</button>
+            <button class="btn btn-ghost" onclick="closeSendModal()">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Case Modal -->
+<div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>עריכת תיק</h3>
+            <button class="modal-close" onclick="closeEditModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="edit-modal-body"></div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="saveEditedCase()">&#128190; שמור</button>
+            <button class="btn btn-ghost" onclick="closeEditModal()">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- Custom Field Modal -->
+<div class="modal-overlay" id="custom-field-modal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="custom-field-modal-title">הוספת שדה חדש</h3>
+            <button class="modal-close" onclick="closeCustomFieldModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <input type="hidden" id="cf-original-key" value="">
+            <div class="form-group">
+                <label>תווית השדה (בעברית) *</label>
+                <input type="text" id="cf-label" placeholder="לדוגמה: תאריך אירוע">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>סוג שדה</label>
+                    <select id="cf-type" onchange="toggleCustomFieldOptions()">
+                        <option value="text">טקסט</option>
+                        <option value="number">מספר</option>
+                        <option value="textarea">טקסט ארוך</option>
+                        <option value="select">בחירה מרשימה</option>
+                        <option value="email">אימייל</option>
+                        <option value="date">תאריך</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>קבוצה</label>
+                    <select id="cf-group">
+                        <option value="info">פרטי הפנייה</option>
+                        <option value="status">סטטוס וחומרים</option>
+                        <option value="call">שיחה עם התובע</option>
+                        <option value="payment">תשלום</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group" id="cf-options-row" style="display:none">
+                <label>אפשרויות (מופרדות בפסיקים)</label>
+                <input type="text" id="cf-options" placeholder="אפשרות 1, אפשרות 2, אפשרות 3">
+            </div>
+            <div class="form-group">
+                <label>תכונות השדה</label>
+                <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:8px">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                        <input type="checkbox" id="cf-in-table" checked> הצג בטבלת תיקים
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                        <input type="checkbox" id="cf-in-new-form" checked> הצג בטופס תיק חדש
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                        <input type="checkbox" id="cf-in-dashboard"> הצג בדשבורד
+                    </label>
+                    <label style="display:flex;align-items:center;gap:6px;font-size:13px">
+                        <input type="checkbox" id="cf-extractable"> חילוץ אוטומטי ממיילים
+                    </label>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="saveCustomField()">&#128190; שמור</button>
+            <button class="btn btn-ghost" onclick="closeCustomFieldModal()">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

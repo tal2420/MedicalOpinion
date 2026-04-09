@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+app_settings.json
+config.json
+*.xlsx
+*.docx
+.claude/
+חוות_דעת_רפואיות/
+.DS_Store
