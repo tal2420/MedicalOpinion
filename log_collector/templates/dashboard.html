@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Collector - Dashboard</title>
+    <style>
+        :root {
+            --bg: #f5f5f5;
+            --card-bg: #fff;
+            --text: #1a1a2e;
+            --text-secondary: #666;
+            --primary: #0078d4;
+            --primary-light: #e8f4fd;
+            --danger: #d13438;
+            --danger-light: #fde7e9;
+            --warning: #ffb900;
+            --warning-light: #fff4ce;
+            --success: #107c10;
+            --success-light: #dff6dd;
+            --border: #e1e1e1;
+            --radius: 8px;
+            --shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            direction: ltr;
+            text-align: left;
+        }
+
+        .header {
+            background: var(--primary);
+            color: #fff;
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .header h1 { font-size: 20px; font-weight: 600; }
+        .header .subtitle { font-size: 13px; opacity: 0.85; }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            background: var(--card-bg);
+            border-radius: var(--radius) var(--radius) 0 0;
+            border-bottom: 2px solid var(--border);
+            margin-bottom: 0;
+        }
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: var(--primary); }
+        .tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Stats cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+        .stat-card .number { font-size: 36px; font-weight: 700; color: var(--primary); }
+        .stat-card .label { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+        .stat-card.danger .number { color: var(--danger); }
+        .stat-card.success .number { color: var(--success); }
+        .stat-card.warning .number { color: var(--warning); }
+
+        /* Tables */
+        .card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            margin-bottom: 24px;
+            overflow: hidden;
+        }
+        .card-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .card-header h3 { font-size: 16px; font-weight: 600; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th {
+            background: #fafafa;
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        tr:hover td { background: #f8f9fa; }
+        tr.clickable { cursor: pointer; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        .badge-error { background: var(--danger-light); color: var(--danger); }
+        .badge-warn { background: var(--warning-light); color: #8a6d00; }
+        .badge-info { background: var(--primary-light); color: var(--primary); }
+
+        /* Log viewer */
+        .log-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+            padding: 16px;
+            border-radius: 0 0 var(--radius) var(--radius);
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .log-viewer .line-error { color: #f48771; }
+        .log-viewer .line-warn { color: #cca700; }
+        .log-viewer .line-info { color: #89d185; }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .filters select, .filters input {
+            padding: 6px 10px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 13px;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: var(--radius);
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-primary:hover { background: #106ebe; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); }
+        .btn-outline:hover { background: #f0f0f0; }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-secondary);
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+        .detail-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .detail-modal.active { display: flex; }
+        .detail-modal .modal-content {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            width: 90%;
+            max-width: 900px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+        }
+        .detail-modal .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .detail-modal .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <h1>&#128202; Log Collector Dashboard</h1>
+            <div class="subtitle">MedicalOpinion - Telemetry &amp; Diagnostics</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Summary Cards -->
+        <div class="stats-row" id="stats-row">
+            <div class="stat-card"><div class="number" id="stat-installations">-</div><div class="label">Installations</div></div>
+            <div class="stat-card success"><div class="number" id="stat-active">-</div><div class="label">Active (7d)</div></div>
+            <div class="stat-card"><div class="number" id="stat-events">-</div><div class="label">Total Events</div></div>
+            <div class="stat-card"><div class="number" id="stat-diagnostics">-</div><div class="label">Diagnostics</div></div>
+            <div class="stat-card danger"><div class="number" id="stat-errors">-</div><div class="label">Errors (24h)</div></div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('overview')">Overview</div>
+            <div class="tab" onclick="showTab('installations')">Installations</div>
+            <div class="tab" onclick="showTab('events')">Events</div>
+            <div class="tab" onclick="showTab('diagnostics')">Diagnostics</div>
+            <div class="tab" onclick="showTab('errors')">Errors</div>
+        </div>
+
+        <!-- Overview Tab -->
+        <div class="tab-content active" id="tab-overview">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Event Distribution (Last 30 Days)</h3>
+                </div>
+                <div style="padding:20px">
+                    <div id="event-stats-chart"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">
+                    <h3>Recent Activity</h3>
+                </div>
+                <table>
+                    <thead><tr><th>Time</th><th>Installation</th><th>Event</th><th>Details</th></tr></thead>
+                    <tbody id="recent-events-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Installations Tab -->
+        <div class="tab-content" id="tab-installations">
+            <div class="card">
+                <div class="card-header"><h3>All Installations</h3></div>
+                <table>
+                    <thead><tr>
+                        <th>ID</th><th>Version</th><th>OS</th><th>Python</th>
+                        <th>First Seen</th><th>Last Seen</th><th>Events</th><th>Diagnostics</th>
+                    </tr></thead>
+                    <tbody id="installations-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Events Tab -->
+        <div class="tab-content" id="tab-events">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Events</h3>
+                    <div class="filters">
+                        <select id="event-filter-days" onchange="loadEvents()">
+                            <option value="1">Last 24h</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                        </select>
+                        <input type="text" id="event-filter-name" placeholder="Filter by event name..." onkeyup="loadEvents()">
+                        <select id="event-filter-installation" onchange="loadEvents()">
+                            <option value="">All installations</option>
+                        </select>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Time</th><th>Installation</th><th>Event</th><th>Properties</th></tr></thead>
+                    <tbody id="events-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Diagnostics Tab -->
+        <div class="tab-content" id="tab-diagnostics">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Diagnostic Bundles</h3>
+                    <div class="filters">
+                        <select id="diag-filter-installation" onchange="loadDiagnostics()">
+                            <option value="">All installations</option>
+                        </select>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>ID</th><th>Installation</th><th>Received</th><th>Version</th><th>OS</th><th>Actions</th></tr></thead>
+                    <tbody id="diagnostics-body"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Errors Tab -->
+        <div class="tab-content" id="tab-errors">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Errors &amp; Warnings from Logs</h3>
+                    <div class="filters">
+                        <select id="error-filter-days" onchange="loadErrors()">
+                            <option value="1">Last 24h</option>
+                            <option value="7" selected>Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                        </select>
+                    </div>
+                </div>
+                <table>
+                    <thead><tr><th>Received</th><th>Installation</th><th>Log Line</th></tr></thead>
+                    <tbody id="errors-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diagnostic Detail Modal -->
+    <div class="detail-modal" id="diag-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Diagnostic Detail</h3>
+                <button class="modal-close" onclick="closeDiagModal()">&times;</button>
+            </div>
+            <div style="padding:20px">
+                <h4 style="margin-bottom:8px">System Info</h4>
+                <pre id="diag-system-info" style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:12px;margin-bottom:16px;overflow-x:auto"></pre>
+                <h4 style="margin-bottom:8px">Config Summary</h4>
+                <pre id="diag-config" style="background:#f5f5f5;padding:12px;border-radius:6px;font-size:12px;margin-bottom:16px;overflow-x:auto"></pre>
+                <h4 style="margin-bottom:8px">Application Log</h4>
+                <div class="log-viewer" id="diag-log"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+const API = '';
+
+async function fetchJSON(url) {
+    const r = await fetch(API + url);
+    return r.json();
+}
+
+function shortId(id) {
+    return id ? id.substring(0, 8) + '...' : '-';
+}
+
+function formatDate(iso) {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+}
+
+function colorizeLog(text) {
+    return text.split('\n').map(line => {
+        if (line.includes('[ERROR]')) return `<span class="line-error">${escHtml(line)}</span>`;
+        if (line.includes('[WARN]')) return `<span class="line-warn">${escHtml(line)}</span>`;
+        if (line.includes('[INFO]')) return `<span class="line-info">${escHtml(line)}</span>`;
+        return escHtml(line);
+    }).join('\n');
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Tab Navigation ─────────────────────────────────────────
+function showTab(name) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#tab-${name}`).classList.add('active');
+    event.target.classList.add('active');
+
+    if (name === 'installations') loadInstallations();
+    else if (name === 'events') loadEvents();
+    else if (name === 'diagnostics') loadDiagnostics();
+    else if (name === 'errors') loadErrors();
+}
+
+// ─── Load Summary ───────────────────────────────────────────
+async function loadSummary() {
+    const data = await fetchJSON('/api/dashboard/summary');
+    document.getElementById('stat-installations').textContent = data.total_installations;
+    document.getElementById('stat-active').textContent = data.active_7d;
+    document.getElementById('stat-events').textContent = data.total_events;
+    document.getElementById('stat-diagnostics').textContent = data.total_diagnostics;
+    document.getElementById('stat-errors').textContent = data.recent_errors;
+}
+
+// ─── Overview ───────────────────────────────────────────────
+async function loadOverview() {
+    // Event stats
+    const stats = await fetchJSON('/api/dashboard/event-stats?days=30');
+    const chart = document.getElementById('event-stats-chart');
+    if (stats.length === 0) {
+        chart.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>No events recorded yet</p></div>';
+    } else {
+        const maxCount = Math.max(...stats.map(s => s.count));
+        chart.innerHTML = stats.map(s => `
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+                <div style="width:180px;font-size:13px;font-weight:500;text-align:right">${escHtml(s.event_name)}</div>
+                <div style="flex:1;background:#f0f0f0;border-radius:4px;height:24px;overflow:hidden">
+                    <div style="width:${(s.count/maxCount*100).toFixed(1)}%;background:var(--primary);height:100%;border-radius:4px;transition:width 0.5s"></div>
+                </div>
+                <div style="width:50px;font-size:13px;font-weight:600">${s.count}</div>
+            </div>
+        `).join('');
+    }
+
+    // Recent events
+    const events = await fetchJSON('/api/dashboard/events?days=1&limit=20');
+    const tbody = document.getElementById('recent-events-body');
+    if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-secondary)">No recent events</td></tr>';
+    } else {
+        tbody.innerHTML = events.map(e => `
+            <tr>
+                <td>${formatDate(e.event_timestamp)}</td>
+                <td><code>${shortId(e.installation_id)}</code></td>
+                <td><span class="badge badge-info">${escHtml(e.event_name)}</span></td>
+                <td>${escHtml(e.properties || '{}')}</td>
+            </tr>
+        `).join('');
+    }
+}
+
+// ─── Installations ──────────────────────────────────────────
+async function loadInstallations() {
+    const rows = await fetchJSON('/api/dashboard/installations');
+    const tbody = document.getElementById('installations-body');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:var(--text-secondary)">No installations yet</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map(r => `
+        <tr>
+            <td><code>${shortId(r.id)}</code></td>
+            <td>${escHtml(r.app_version || '-')}</td>
+            <td>${escHtml(r.os || '-')} ${escHtml(r.os_release || '')}</td>
+            <td>${escHtml(r.python_version || '-')}</td>
+            <td>${formatDate(r.first_seen)}</td>
+            <td>${formatDate(r.last_seen)}</td>
+            <td>${r.event_count || 0}</td>
+            <td>${r.diagnostic_count || 0}</td>
+        </tr>
+    `).join('');
+
+    // Populate filter dropdowns
+    populateInstallationFilters(rows);
+}
+
+function populateInstallationFilters(rows) {
+    const selects = ['event-filter-installation', 'diag-filter-installation'];
+    selects.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const existing = el.value;
+        el.innerHTML = '<option value="">All installations</option>' +
+            rows.map(r => `<option value="${r.id}">${shortId(r.id)} (v${r.app_version || '?'})</option>`).join('');
+        el.value = existing;
+    });
+}
+
+// ─── Events ─────────────────────────────────────────────────
+async function loadEvents() {
+    const days = document.getElementById('event-filter-days').value;
+    const name = document.getElementById('event-filter-name').value;
+    const inst = document.getElementById('event-filter-installation').value;
+    let url = `/api/dashboard/events?days=${days}&limit=200`;
+    if (name) url += `&event_name=${encodeURIComponent(name)}`;
+    if (inst) url += `&installation_id=${encodeURIComponent(inst)}`;
+
+    const events = await fetchJSON(url);
+    const tbody = document.getElementById('events-body');
+    if (events.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:40px;color:var(--text-secondary)">No events found</td></tr>';
+        return;
+    }
+    tbody.innerHTML = events.map(e => `
+        <tr>
+            <td>${formatDate(e.event_timestamp)}</td>
+            <td><code>${shortId(e.installation_id)}</code></td>
+            <td><span class="badge badge-info">${escHtml(e.event_name)}</span></td>
+            <td style="max-width:400px">${escHtml(e.properties || '{}')}</td>
+        </tr>
+    `).join('');
+}
+
+// ─── Diagnostics ────────────────────────────────────────────
+async function loadDiagnostics() {
+    const inst = document.getElementById('diag-filter-installation').value;
+    let url = '/api/dashboard/diagnostics?limit=50';
+    if (inst) url += `&installation_id=${encodeURIComponent(inst)}`;
+
+    const rows = await fetchJSON(url);
+    const tbody = document.getElementById('diagnostics-body');
+    if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text-secondary)">No diagnostic bundles</td></tr>';
+        return;
+    }
+    tbody.innerHTML = rows.map(r => {
+        let sys = {};
+        try { sys = JSON.parse(r.system_info); } catch(e) {}
+        return `
+            <tr class="clickable" onclick="viewDiagnostic(${r.id})">
+                <td>#${r.id}</td>
+                <td><code>${shortId(r.installation_id)}</code></td>
+                <td>${formatDate(r.received_at)}</td>
+                <td>${escHtml(sys.app_version || '-')}</td>
+                <td>${escHtml(sys.os || '-')} ${escHtml(sys.os_release || '')}</td>
+                <td><button class="btn btn-outline" onclick="event.stopPropagation(); viewDiagnostic(${r.id})">View Log</button></td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function viewDiagnostic(id) {
+    const data = await fetchJSON(`/api/dashboard/diagnostics/${id}`);
+    let sys = {}, cfg = {};
+    try { sys = JSON.parse(data.system_info); } catch(e) {}
+    try { cfg = JSON.parse(data.config_summary); } catch(e) {}
+
+    document.getElementById('diag-system-info').textContent = JSON.stringify(sys, null, 2);
+    document.getElementById('diag-config').textContent = JSON.stringify(cfg, null, 2);
+    document.getElementById('diag-log').innerHTML = colorizeLog(data.log_text || '(empty)');
+    document.getElementById('diag-modal').classList.add('active');
+}
+
+function closeDiagModal() {
+    document.getElementById('diag-modal').classList.remove('active');
+}
+
+// ─── Errors ─────────────────────────────────────────────────
+async function loadErrors() {
+    const days = document.getElementById('error-filter-days').value;
+    const errors = await fetchJSON(`/api/dashboard/errors?days=${days}`);
+    const tbody = document.getElementById('errors-body');
+    if (errors.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:40px;color:var(--text-secondary)">No errors found 🎉</td></tr>';
+        return;
+    }
+    tbody.innerHTML = errors.map(e => {
+        const isError = e.line.includes('[ERROR]');
+        return `
+            <tr class="clickable" onclick="viewDiagnostic(${e.diagnostic_id})">
+                <td>${formatDate(e.received_at)}</td>
+                <td><code>${shortId(e.installation_id)}</code></td>
+                <td><span class="badge ${isError ? 'badge-error' : 'badge-warn'}">${isError ? 'ERROR' : 'WARN'}</span> ${escHtml(e.line)}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ─── Init ───────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadSummary();
+    await loadOverview();
+    // Pre-load installations for filter dropdowns
+    const rows = await fetchJSON('/api/dashboard/installations');
+    populateInstallationFilters(rows);
+});
+
+// Close modal on backdrop click
+document.getElementById('diag-modal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeDiagModal();
+});
+</script>
+</body>
+</html>

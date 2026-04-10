@@ -1,0 +1,18 @@
+version: "3.8"
+
+services:
+  log-collector:
+    build: .
+    container_name: medical-opinion-log-collector
+    ports:
+      - "${COLLECTOR_PORT:-5600}:5600"
+    volumes:
+      - log-data:/data
+    environment:
+      - COLLECTOR_PORT=5600
+      - DB_PATH=/data/logs.db
+    restart: unless-stopped
+
+volumes:
+  log-data:
+    driver: local

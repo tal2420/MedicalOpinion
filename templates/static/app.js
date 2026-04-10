@@ -105,6 +105,13 @@ function showPage(pageId) {
     if (pageId === 'dashboard') loadDashboard();
     if (pageId === 'cases') loadCases();
     if (pageId === 'settings') loadSettings();
+
+    // Track page view (fire-and-forget)
+    fetch('/api/telemetry/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'page_view', properties: { page: pageId } })
+    }).catch(() => {});
 }
 
 // ===== Toast =====
@@ -879,6 +886,7 @@ async function loadSettings() {
         document.getElementById('set-phone').value = config.professor_phone || '';
         document.getElementById('set-address').value = config.professor_address || '';
         document.getElementById('set-github-repo').value = config.github_repo || '';
+        document.getElementById('setting-collector-url').value = config.collector_url || '';
     } catch (e) { /* toast shown */ }
     try {
         const ver = await api('/api/update/version');
@@ -989,6 +997,54 @@ async function copyLogs() {
         showToast('הלוג הועתק ללוח - אפשר להדביק למייל', 'success');
     } catch (e) {
         showToast('שגיאה בהעתקה: ' + e.message, 'error');
+    }
+}
+
+// ===== Telemetry / Log Sending =====
+async function sendDiagnosticBundle() {
+    const resultDiv = document.getElementById('send-logs-result');
+    // Save collector URL first
+    const collectorUrl = document.getElementById('setting-collector-url').value.trim();
+    if (!collectorUrl) {
+        showToast('יש להזין כתובת שרת איסוף', 'error');
+        return;
+    }
+    resultDiv.innerHTML = '<span class="spinner"></span> שומר כתובת ושולח לוגים...';
+    try {
+        // Save the collector URL to config
+        await api('/api/settings', {
+            method: 'POST',
+            body: JSON.stringify({ collector_url: collectorUrl })
+        });
+        // Send diagnostic bundle
+        const result = await api('/api/telemetry/send-logs', { method: 'POST' });
+        if (result.success) {
+            resultDiv.innerHTML = `<span style="color:var(--success)">&#10003; ${result.message}</span>`;
+            showToast(result.message, 'success');
+        } else {
+            resultDiv.innerHTML = `<span style="color:var(--danger)">&#10006; ${result.message}</span>`;
+            showToast(result.message, 'error');
+        }
+    } catch (e) {
+        resultDiv.innerHTML = `<span style="color:var(--danger)">&#10006; שגיאה: ${e.message}</span>`;
+    }
+}
+
+async function sendUsageEvents() {
+    const collectorUrl = document.getElementById('setting-collector-url').value.trim();
+    if (!collectorUrl) {
+        showToast('יש להזין כתובת שרת איסוף', 'error');
+        return;
+    }
+    try {
+        await api('/api/settings', {
+            method: 'POST',
+            body: JSON.stringify({ collector_url: collectorUrl })
+        });
+        const result = await api('/api/telemetry/send-events', { method: 'POST' });
+        showToast(result.message || 'נתוני שימוש נשלחו', 'success');
+    } catch (e) {
+        showToast('שגיאה בשליחת נתוני שימוש: ' + e.message, 'error');
     }
 }
 

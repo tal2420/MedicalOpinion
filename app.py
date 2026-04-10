@@ -14,6 +14,7 @@ import doc_generator
 import updater
 import schema
 import applog
+import telemetry
 
 app = Flask(__name__, static_folder="templates/static", static_url_path="/static")
 
@@ -150,6 +151,7 @@ def api_get_cases():
 @app.route("/api/cases", methods=["POST"])
 def api_create_case():
     data = request.get_json()
+    telemetry.track_event("case_create", {"source": data.get("referral_source", "manual")})
 
     # Create case in Excel
     case_number = excel_manager.add_case(data)
@@ -285,6 +287,7 @@ def api_rescan_attachments(case_number):
 
 @app.route("/api/cases/<int:case_number>/generate", methods=["POST"])
 def api_generate_opinion(case_number):
+    telemetry.track_event("opinion_generate", {"case_number": case_number})
     case = excel_manager.get_case(case_number)
     if not case:
         return jsonify({"error": "Case not found"}), 404
@@ -319,6 +322,7 @@ def api_scan_emails():
         unread_only = request.args.get("unread_only", "true").lower() == "true"
 
         applog.info(f"[scan] START max={max_count} days={days_back} unread_only={unread_only}")
+        telemetry.track_event("email_scan", {"max": max_count, "days": days_back, "unread_only": unread_only})
 
         emails = email_service.fetch_emails(
             max_count=max_count,
@@ -345,6 +349,7 @@ def api_scan_emails():
 @app.route("/api/emails/import", methods=["POST"])
 def api_import_email():
     email_data = request.get_json()
+    telemetry.track_event("email_import", {"subject_length": len(email_data.get("subject", ""))})
 
     # Step 1: Re-fetch the full email with binary attachments from server
     full_attachments = []
@@ -596,6 +601,7 @@ def api_import_folder():
     """
     data = request.get_json() or {}
     folder_path = data.get("path", "")
+    telemetry.track_event("folder_import", {"has_path": bool(folder_path)})
     if not folder_path or not os.path.isdir(folder_path):
         return jsonify({"error": "Folder not found"}), 404
 
@@ -808,6 +814,32 @@ def datetime_now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
+# ===== Telemetry API =====
+@app.route("/api/telemetry/track", methods=["POST"])
+def api_track_event():
+    """Track a usage event (buffered locally, sent to collector periodically)."""
+    data = request.get_json(silent=True) or {}
+    event_name = data.get("event", "")
+    properties = data.get("properties", {})
+    if event_name:
+        telemetry.track_event(event_name, properties)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/telemetry/send-logs", methods=["POST"])
+def api_send_logs():
+    """Send diagnostic bundle (logs + system info + events) to the collector."""
+    result = telemetry.send_diagnostic_bundle()
+    return jsonify(result)
+
+
+@app.route("/api/telemetry/send-events", methods=["POST"])
+def api_flush_events():
+    """Flush buffered usage events to the collector now."""
+    telemetry.flush_events_async()
+    return jsonify({"ok": True, "message": "אירועים נשלחו ברקע"})
+
+
 @app.route("/api/open-file", methods=["POST"])
 def api_open_file():
     """Open a file with the system default application.
@@ -878,6 +910,20 @@ def get_port():
     return int(os.environ.get("PORT", 5555))
 
 
+def _start_periodic_flush():
+    """Flush telemetry events every 5 minutes in background."""
+    import time as _time
+    def _flush_loop():
+        while True:
+            _time.sleep(300)
+            try:
+                telemetry.flush_events_async()
+            except Exception:
+                pass
+    t = threading.Thread(target=_flush_loop, daemon=True)
+    t.start()
+
+
 def run_flask():
     app.run(host="127.0.0.1", port=get_port(), debug=False, use_reloader=False)
 
@@ -885,6 +931,10 @@ def run_flask():
 if __name__ == "__main__":
     # Ensure data directory exists
     config.get_data_dir()
+
+    # Track app startup
+    telemetry.track_event("app_start")
+    _start_periodic_flush()
 
     port = get_port()
 

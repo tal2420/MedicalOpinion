@@ -310,6 +310,23 @@
             <div id="update-result" style="margin-top:12px"></div>
         </div>
 
+        <!-- Telemetry / Log Sending -->
+        <div class="settings-section" style="margin-top:16px">
+            <h3>&#128225; שליחת לוגים ונתוני שימוש</h3>
+            <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px">
+                שלח לוגים ונתוני שימוש אנונימיים לשרת איסוף לטובת שיפור המערכת ותחקור תקלות.
+            </p>
+            <div class="form-group">
+                <label>כתובת שרת איסוף</label>
+                <input type="text" id="setting-collector-url" dir="ltr" placeholder="http://your-server:5600" style="text-align:left">
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+                <button type="button" class="btn btn-primary" onclick="sendDiagnosticBundle()">&#128232; שלח לוגים לשרת</button>
+                <button type="button" class="btn btn-outline" onclick="sendUsageEvents()">&#128200; שלח נתוני שימוש</button>
+            </div>
+            <div id="send-logs-result" style="margin-top:8px"></div>
+        </div>
+
         <!-- Diagnostics / Logs -->
         <div class="settings-section" style="margin-top:16px">
             <h3>&#128221; לוגים ואבחון</h3>

@@ -81,6 +81,8 @@ def _default_config():
         "professor_phone": "",
         "professor_address": "",
         "github_repo": DEFAULT_GITHUB_REPO,
+        "collector_url": "",
+        "telemetry_enabled": True,
     }
 
 
