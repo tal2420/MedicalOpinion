@@ -379,10 +379,14 @@ def dashboard():
     return render_template("dashboard.html")
 
 
+# ─── Initialize DB on import (needed for gunicorn) ──────────────────────
+
+init_db()
+
+
 # ─── Main ────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    init_db()
     port = int(os.environ.get("COLLECTOR_PORT", 5600))
     print(f"Log Collector running at http://0.0.0.0:{port}")
     app.run(host="0.0.0.0", port=port, debug=True)
